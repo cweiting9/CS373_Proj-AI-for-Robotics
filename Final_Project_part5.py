@@ -33,24 +33,43 @@ def cte(r,center,position):
     dist_from_center=distance_between(center,position)
     cte=dist_from_center-r
     return cte
-def find_center(p1,p2,p3):
-    ##using Cramer's rule to solve the equation of the circle
-    f1=-(p1[0]**2+p1[1]**2)
-    f2=-(p2[0]**2+p2[1]**2)
-    f3=-(p3[0]**2+p3[1]**2)
-    A=[[p1[0],p1[1],1],[p2[0],p2[1],1],[p3[0],p3[1],1]]
-    F=[f1,f2,f3]
-    D=A[0][0]*A[1][1]*A[2][2]+A[0][1]*A[1][2]*A[2][0]+A[0][2]*A[1][0]*A[2][1]-A[0][2]*A[1][1]*A[2][0]-A[0][1]*A[1][0]*A[2][2]-A[0][0]*A[1][2]*A[2][1]
-    Dd=F[0]*A[1][1]*A[2][2]+A[0][1]*A[1][2]*F[2]+A[0][2]*F[1]*A[2][1]-A[0][2]*A[1][1]*F[2]-A[0][1]*F[1]*A[2][2]-F[0]*A[1][2]*A[2][1]
-    De=A[0][0]*F[1]*A[2][2]+F[0]*A[1][2]*A[2][0]+A[0][2]*A[1][0]*F[2]-A[0][2]*F[1]*A[2][0]-F[0]*A[1][0]*A[2][2]-A[0][0]*A[1][2]*F[2]
-    Df=A[0][0]*A[1][1]*F[2]+A[0][1]*F[1]*A[2][0]+F[0]*A[1][0]*A[2][1]-F[0]*A[1][1]*A[2][0]-A[0][1]*A[1][0]*F[2]-A[0][0]*F[1]*A[2][1]
-    d=Dd/D
-    e=De/D
-    f=Df/D
-    r=sqrt((d/2)**2+(e/2)**2-f)
-    x=-d/2.
-    y=-e/2. 
-    return [x ,y ,r]
+def Circle_Fitting(List_PointSet):
+    #using Least Squares method to obtain the equation of the cirlce 
+    #initailing sum
+    X1=0.0
+    Y1=0.0
+    X2=0.0
+    Y2=0.0
+    X3=0.0
+    Y3=0.0
+    X1_Y1=0.0
+    X1_Y2=0.0
+    X2_Y1=0.0
+    N=len(List_PointSet)
+    for i in range(N):
+        X1+=List_PointSet[i][0]
+        Y1+=List_PointSet[i][1]
+        X2+=List_PointSet[i][0]*List_PointSet[i][0]
+        Y2+=List_PointSet[i][1]*List_PointSet[i][1]
+        X3+=List_PointSet[i][0]*List_PointSet[i][0]*List_PointSet[i][0]
+        Y3+=List_PointSet[i][1]*List_PointSet[i][1]*List_PointSet[i][1]
+        X1_Y1+=List_PointSet[i][0]*List_PointSet[i][1]
+        X1_Y2+=List_PointSet[i][0]*List_PointSet[i][1]*List_PointSet[i][1]
+        X2_Y1+=List_PointSet[i][0]*List_PointSet[i][0]*List_PointSet[i][1]
+    C=N*X2 - X1*X1
+    D=N*X1_Y1 - X1*Y1
+    E=N*X3 + N*X1_Y2 - (X2+Y2)*X1
+    G=N*Y2 - Y1*Y1
+    H=N*X2_Y1 + N*Y3 - (X2+Y2)*Y1
+
+    a=(H*D-E*G)/(C*G-D*D)
+    b=(H*C-E*D)/(D*D-G*C)
+    c=-(a*X1 + b*Y1 + X2 + Y2)/N
+
+    Xc=a/(-2)
+    Yc= b/(-2)
+    R=sqrt(a*a+b*b-4*c)/2
+    return [Xc ,Yc ,R]
     
 def estimate_next_pos(measurement, OTHER = None):
     """Estimate the next (x, y) position of the wandering Traxbot
@@ -58,77 +77,51 @@ def estimate_next_pos(measurement, OTHER = None):
     if OTHER==None:
         OTHER=[]
         OTHER.append([measurement])
-        OTHER.append([]) ##for every (x,y,r)
-        OTHER.append([]) ##for every step_dist
-        OTHER.append(False) ##for clockwise
-        OTHER.append([]) ##for aver x ,y ,r ,step_size
+        OTHER.append([]) #for (x,y,r)
+        OTHER.append([]) #for step_dist
+        OTHER.append(False) #for clockwise
         xy_estimate=measurement
         return xy_estimate, OTHER 
-    elif len(OTHER[0])<30:
-        ##collect enough measurements to obtain the center
+    elif len(OTHER[0])<5:
+        #collect enough measurements to calculate the center
         OTHER[0].append(measurement)
         xy_estimate=measurement
         return xy_estimate, OTHER 
     else:
         
         Z=measurement
-        OTHER[0].append(Z)
-        num=len(OTHER[0])
-        Z_prev=OTHER[0][num-2]
+        OTHER[0].append(Z) ##update OTHER[0] measurement
+        num=len(OTHER[0]) ## the number of the measurements
+        Z_prev=OTHER[0][num-2] ## the previous measurement
+        Z_prev2=OTHER[0][num-3] ## the one more previous than Z_prev
         step_dist=distance_between(Z,Z_prev)
-        OTHER[2].append(step_dist)
-
+        OTHER[2].append(step_dist) ##collect every step_dist for average
         
-        while True:
-            ran1=random.randint(0, num-1)
-            ##ran2=(ran1+8)%num
-            ##ran3=(ran2+8)%num
-            ran2=random.randint(0, num-1)
-            ran3=random.randint(0, num-1)
-            Z1=OTHER[0][ran1]
-            Z2=OTHER[0][ran2]
-            Z3=OTHER[0][ran3]
-            d12=distance_between(Z1,Z2)
-            d23=distance_between(Z2,Z3)
-            d13=distance_between(Z1,Z3)
-            if d12 >3*step_dist and d23 >3*step_dist and d13 >3*step_dist:
-                break
-       
-        cen=find_center(Z1,Z2,Z3)
-        OTHER[1].append(cen)
-        print cen
-        sum_x=0.0
-        sum_y=0.0
-        sum_r=0.0
-        len_xy=len(OTHER[1])
-        for i in range(len_xy):
-            sum_x+=OTHER[1][i][0]
-            sum_y+=OTHER[1][i][1]
-            sum_r+=OTHER[1][i][2]
+        Center=Circle_Fitting(OTHER[0])
+    
+        aver_cen_x=Center[0]
+        aver_cen_y=Center[1]
+        aver_cen_r=Center[2]
         sum_step_dist=0.0
         for i in range(len(OTHER[2])):
             sum_step_dist+=OTHER[2][i]
-        aver_cen_x=sum_x/len_xy
-        aver_cen_y=sum_y/len_xy
-        aver_cen_r=sum_r/len_xy
         aver_step=sum_step_dist/len(OTHER[2])
-        OTHER[4]=[aver_cen_x, aver_cen_y, aver_cen_r,aver_step]
 
-        Z_prev2=OTHER[0][num-3]
-        d_theta=aver_step/aver_cen_r
+        
+        ##to make sure the bot moves clockwisely or not
         
         thetaZ_prev2=atan2(Z_prev2[1]-aver_cen_y,Z_prev2[0]-aver_cen_x)
         thetaZ_prev=atan2(Z_prev[1]-aver_cen_y,Z_prev[0]-aver_cen_x)
         thetaZ=atan2(Z[1]-aver_cen_y,Z[0]-aver_cen_x)
         if thetaZ<0:
-            thetaZ+=2*pi
+            thetaZ+=2*pi ##make thetaZ between 0 and 2pi
         if thetaZ_prev<0:
             thetaZ_prev+=2*pi
         if thetaZ_prev2<0:
             thetaZ_prev2+=2*pi
-
-        Clockwise=False
-        if len(OTHER[0])==32:
+        
+        Clockwise=False##set default to False     
+        if len(OTHER[0])==16:
             if abs(thetaZ_prev-thetaZ_prev2)<pi: ## if the two points are not on the verge of 0 
                 if thetaZ_prev>thetaZ_prev2:
                     Clockwise=False
@@ -140,8 +133,8 @@ def estimate_next_pos(measurement, OTHER = None):
                 else:
                     Clockwise=True
             OTHER[3]=Clockwise
-        #print ("pre: %s" %thetaZ_prev)
-        #print ("now: %s"%thetaZ)
+
+        d_theta=aver_step/aver_cen_r ## average travel degree
         if OTHER[3]==False: 
             THETA=thetaZ+d_theta
         else:
@@ -152,6 +145,10 @@ def estimate_next_pos(measurement, OTHER = None):
         xy_estimate=[next_x,next_y]
         
         return xy_estimate, OTHER 
+    
+    # You must return xy_estimate (x, y), and OTHER (even if it is None) 
+    # in this order for grading purposes.
+
 def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER = None):
     # This function will be called after each time the target moves. 
     if OTHER==None:
