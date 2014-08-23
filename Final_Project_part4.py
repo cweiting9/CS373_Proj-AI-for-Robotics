@@ -32,7 +32,7 @@
 #
 # As an added challenge, try to get to the target bot as quickly as 
 # possible. 
-
+#test triangle
 from robot import *
 from math import *
 from matrix import *
