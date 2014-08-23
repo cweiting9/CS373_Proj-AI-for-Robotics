@@ -32,7 +32,6 @@
 #
 # As an added challenge, try to get to the target bot as quickly as 
 # possible. 
-#test triangle
 from robot import *
 from math import *
 from matrix import *
@@ -143,7 +142,6 @@ def estimate_next_pos(measurement, OTHER = None):
         aver_step=OTHER[1]/(times_of_trial-1)
         
         Xc, Yc, R, OTHER[4]=Circle_Fitting(OTHER[0],OTHER[4])
-        #print Xc, Yc, R, aver_step
         OTHER[5]=[Xc, Yc, R, aver_step]
               
         ##to make sure the bot moves clockwisely or not
@@ -192,14 +190,22 @@ def estimate_next_pos(measurement, OTHER = None):
 
 def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER = None):
     # This function will be called after each time the target moves. 
-
+    # First, use PD control to move on the track in the opposite direction
+    # When they bump into each other, start move on a Hexagonal track on the same direction
+    # If the hunter is hehind the target, then switch to PD control
     if OTHER==None: #first measurement
         OTHER=[]
         target_OTHER=None
         target_est, target_OTHER=estimate_next_pos(target_measurement, target_OTHER)
         OTHER.append(target_OTHER)#OTEHR[0]:target_OTHER for estimate_next_pos
-        OTHER.append(0) # OTEHR[1] for cte
-
+        OTHER.append(False) # OTEHR[1] flag of Path points
+        OTHER.append(0) #OTHER[2] counter of staying the same point
+        OTHER.append(0) #OTHER[3] index of the Path points
+        OTHER.append(True) #OTHER[4] flag of PD control
+        OTHER.append(0) # OTEHR[5] for cte
+        OTHER.append([]) # OTHER[6] hunter position theta in the end of moving in the opposite direction 
+        
+        
         #to decide turning degree and moveing distance of the hunter
         #if distance between target and hunter is larger than hunter's max speed,
         #then hunter moves at full speed. Otherwise, move the exact distance between them 
@@ -216,7 +222,7 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
         target_est, target_OTHER=estimate_next_pos(target_measurement, OTHER[0])
         OTHER[0]=target_OTHER
         dist=distance_between(target_est,hunter_position)
-        #OTHER[0][5] states that there's still not enough measurements for Xc, Yc, R
+        #OTHER[0][5]==0 states that there's still not enough measurements for Xc, Yc, R
         #just simply move toward the target
         if len(OTHER[0][5])==0:
             diff_heading=get_heading(hunter_position, target_est)
@@ -229,41 +235,92 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
         #When the hunter has the information Xc ,Yc ,R, step distace
         else:
             #to retrive Xc, Yc, R and step_dist from estimate_next_pos
-            Xc, Yc ,R, aver_step_dist=OTHER[0][5] 
-
-            #if the distance between the hunter and the center of the track of the target is not between
-            #(R+1.1*aver_step_dist) and (R-1.1*aver_step_dist), then the hunter moves toward the postion
-            #which is the nearest point on the track to the hunter
-            dist_center=distance_between(hunter_position,[Xc,Yc])
-            if dist_center>R+1.1*aver_step_dist or dist_center<R-1.1*aver_step_dist:
-                nearest_theta=atan2(hunter_position[1]-Yc,hunter_position[0]-Xc)
-                nearest_point=[Xc+R*cos(nearest_theta),Yc+R*sin(nearest_theta)]
-                diff_heading=get_heading(hunter_position, nearest_point)
-                turning=angle_trunc(diff_heading-hunter_heading)
-                dist_nearest=distance_between(nearest_point,hunter_position)
-                if dist_nearest>max_distance:
-                    distance=max_distance
-                else:
-                    distance=dist_nearest
-            #when the hunter is near the track of the target, use PD control to move on the track
-            else:             
-                crosstrack_error=cte(R,[Xc, Yc],hunter_position)
-                diff_crosstrack_error=-OTHER[1] #OTHER[1]: last measurement's cte 
-                OTHER[1]=crosstrack_error #update OTHER[1] for next move
-                #if the bot is unreachable, then move on the track of the circle in the opposite direction 
-                if dist>max_distance:
-                    distance=0.5*max_distance
-                    diff_crosstrack_error+=crosstrack_error
-                    if OTHER[0][2]==False: ##if the bot moves counterclockwisely
-                        turning=-1.0*crosstrack_error-1.0*diff_crosstrack_error
+            Xc, Yc ,R, aver_step_dist=OTHER[0][5]
+            # PD control part
+            if OTHER[4]==True:
+                #if the distance between the hunter and the center of the track of the target is not between
+                #(R+1.1*aver_step_dist) and (R-1.1*aver_step_dist), then the hunter moves toward the postion
+                #which is the nearest point on the track to the hunter
+                dist_center=distance_between(hunter_position,[Xc,Yc])
+                if dist_center>R+1.1*aver_step_dist or dist_center<R-1.1*aver_step_dist:
+                    nearest_theta=atan2(hunter_position[1]-Yc,hunter_position[0]-Xc)
+                    nearest_point=[Xc+R*cos(nearest_theta),Yc+R*sin(nearest_theta)]
+                    diff_heading=get_heading(hunter_position, nearest_point)
+                    turning=angle_trunc(diff_heading-hunter_heading)
+                    dist_nearest=distance_between(nearest_point,hunter_position)
+                    if dist_nearest>max_distance:
+                        distance=max_distance
                     else:
-                        turning=1.0*crosstrack_error+1.0*diff_crosstrack_error
-                #if the bot is reachable, then go for it
-                else:
-                    distance=dist
+                        distance=dist_nearest
+               #when the hunter is near the track of the target, use PD control to move on the track
+                else:             
+                    crosstrack_error=cte(R,[Xc, Yc],hunter_position)
+                    diff_crosstrack_error=-OTHER[5] #OTHER[5]: last measurement's cte 
+                    OTHER[5]=crosstrack_error #update OTHER[5] for next move
+                    #if the bot is unreachable, then move on the track of the circle in the opposite direction 
+                    if dist>max_distance:
+                        distance=0.5*max_distance
+                        diff_crosstrack_error+=crosstrack_error
+                        if OTHER[0][2]==False: ##if the bot moves counterclockwisely
+                            turning=-1.0*crosstrack_error-1.0*diff_crosstrack_error
+                        else:
+                            turning=1.0*crosstrack_error+1.0*diff_crosstrack_error
+                    #if the bot is reachable, then go for it
+                    else:
+                        distance=dist
+                        diff_heading=get_heading(hunter_position, target_est)
+                        turning=angle_trunc(diff_heading-hunter_heading)
+                        OTHER[6]=atan2(hunter_position[1]-Yc,hunter_position[0]-Xc)
+                        # Switch to Hexagonal track and initilize the counters
+                        OTHER[4]=False
+                        OTHER[3]=0
+                        OTHER[2]=0
+
+            else:
+                # Hexagonal track part
+                current_theta=OTHER[6]
+                # counterclockwise
+                Path_Theta=[pi/3.0, 2.0*pi/3.0, 3.0*pi/3.0, 4.0*pi/3.0, 5.0*pi/3.0, 6.0*pi/3.0]
+                if OTHER[0][2]==True: # clockwise
+                    Path_Theta=[-pi/3.0, -2.0*pi/3.0, -3.0*pi/3.0, -4.0*pi/3.0, -5.0*pi/3.0, -6.0*pi/3.0]
+
+                # Make the path points theta relative to the current_theta
+                Path_Points=[]
+                for theta in Path_Theta:
+                    Path_Points.append([Xc+R*cos(current_theta+theta),Yc+R*sin(current_theta+theta)])
+                
+              
+          
+                Path_index=OTHER[3]
+                Path_position=Path_Points[Path_index]
+
+                dist_Path=distance_between(hunter_position,Path_position)
+                dist=distance_between(hunter_position,target_est)
+
+                # If the target is reachable, then go for it or heading to the next point of Hexagonal track
+                if dist<max_distance:
                     diff_heading=get_heading(hunter_position, target_est)
                     turning=angle_trunc(diff_heading-hunter_heading)
-            
+                    distance=dist
+                    # Dont add counter repeatedly
+                    if OTHER[1]==False:
+                        OTHER[3]=(OTHER[3]+1)%6
+                        OTHER[1]=True
+                else:
+                    
+                    diff_heading=get_heading(hunter_position, Path_position)
+                    turning=angle_trunc(diff_heading-hunter_heading)
+                    if dist_Path>max_distance:
+                        OTHER[1]=False
+                        distance=max_distance
+                    else:
+                        distance=dist_Path
+                        OTHER[2]+=1
+                        # If staying too long, then switch back
+                        if OTHER[2]>3:
+                            OTHER[4]=True
+                            
+                                      
     return turning, distance, OTHER
     # The OTHER variable is a place for you to store any historical information about
     # the progress of the hunt (or maybe some localization information). Your return format
@@ -390,12 +447,89 @@ def naive_next_move(hunter_position, hunter_heading, target_measurement, max_dis
     distance = max_distance # full speed ahead!
     return turning, distance, OTHER
 
-target = robot(10.0, 20.0, 0.0, -2*pi / 30, 1.5)
+target = robot(0.0, 0.0, 0.0, 2*pi / 34.0, 1.5)
 measurement_noise = .05*target.distance
 target.set_noise(0.0, 0.0, measurement_noise)
 
 hunter = robot(-10, -10, 0.0)
 print demo_grading(hunter, target, next_move)
 
+#backup
+'''
+def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER = None):
+    # This function will be called after each time the target moves. 
 
+    if OTHER==None: #first measurement
+        OTHER=[]
+        target_OTHER=None
+        target_est, target_OTHER=estimate_next_pos(target_measurement, target_OTHER)
+        OTHER.append(target_OTHER)#OTEHR[0]:target_OTHER for estimate_next_pos
+        OTHER.append(0) # OTEHR[1] for cte
+
+        #to decide turning degree and moveing distance of the hunter
+        #if distance between target and hunter is larger than hunter's max speed,
+        #then hunter moves at full speed. Otherwise, move the exact distance between them 
+        diff_heading=get_heading(hunter_position, target_est)
+        turning=angle_trunc(diff_heading-hunter_heading)
+        dist=distance_between(target_est,hunter_position)
+        if dist>max_distance:
+            distance=max_distance
+        else:
+            distance=dist
+
+    else:
+        #to retrive the necessary information from OTHER
+        target_est, target_OTHER=estimate_next_pos(target_measurement, OTHER[0])
+        OTHER[0]=target_OTHER
+        dist=distance_between(target_est,hunter_position)
+        #OTHER[0][5] states that there's still not enough measurements for Xc, Yc, R
+        #just simply move toward the target
+        if len(OTHER[0][5])==0:
+            diff_heading=get_heading(hunter_position, target_est)
+            turning=angle_trunc(diff_heading-hunter_heading)
+            
+            if dist>max_distance:
+                distance=max_distance
+            else:
+                distance=dist
+        #When the hunter has the information Xc ,Yc ,R, step distace
+        else:
+            #to retrive Xc, Yc, R and step_dist from estimate_next_pos
+            Xc, Yc ,R, aver_step_dist=OTHER[0][5] 
+
+            #if the distance between the hunter and the center of the track of the target is not between
+            #(R+1.1*aver_step_dist) and (R-1.1*aver_step_dist), then the hunter moves toward the postion
+            #which is the nearest point on the track to the hunter
+            dist_center=distance_between(hunter_position,[Xc,Yc])
+            if dist_center>R+1.1*aver_step_dist or dist_center<R-1.1*aver_step_dist:
+                nearest_theta=atan2(hunter_position[1]-Yc,hunter_position[0]-Xc)
+                nearest_point=[Xc+R*cos(nearest_theta),Yc+R*sin(nearest_theta)]
+                diff_heading=get_heading(hunter_position, nearest_point)
+                turning=angle_trunc(diff_heading-hunter_heading)
+                dist_nearest=distance_between(nearest_point,hunter_position)
+                if dist_nearest>max_distance:
+                    distance=max_distance
+                else:
+                    distance=dist_nearest
+            #when the hunter is near the track of the target, use PD control to move on the track
+            else:             
+                crosstrack_error=cte(R,[Xc, Yc],hunter_position)
+                diff_crosstrack_error=-OTHER[1] #OTHER[1]: last measurement's cte 
+                OTHER[1]=crosstrack_error #update OTHER[1] for next move
+                #if the bot is unreachable, then move on the track of the circle in the opposite direction 
+                if dist>max_distance:
+                    distance=0.5*max_distance
+                    diff_crosstrack_error+=crosstrack_error
+                    if OTHER[0][2]==False: ##if the bot moves counterclockwisely
+                        turning=-1.0*crosstrack_error-1.0*diff_crosstrack_error
+                    else:
+                        turning=1.0*crosstrack_error+1.0*diff_crosstrack_error
+                #if the bot is reachable, then go for it
+                else:
+                    distance=dist
+                    diff_heading=get_heading(hunter_position, target_est)
+                    turning=angle_trunc(diff_heading-hunter_heading)
+            
+    return turning, distance, OTHER
+'''
 
