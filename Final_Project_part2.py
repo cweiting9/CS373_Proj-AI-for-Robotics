@@ -38,8 +38,14 @@ import random
 # passed back to your function the next time it is called. You can use
 # this to keep track of important information over time.
 def Circle_Fitting(ThreePoints,PointData=None):
-    #using Least Squares method to obtain the equation of the cirlce 
-    #initailing sum
+    #using Least Squares method to obtain the equation of the cirlce
+    #euation of circle: x^2+y^2+ax+by+c=0
+    #Xc=-a/2 Yc=-b/2 R=0.5*sqrt(a^2+b^2-4c)
+    #Measurement point set (Xi, Yi)
+    #di^2=(Xi-Xc)^2+(Yi-Yc)^2
+    #Ji=(di^2-R^2)^2; J=Summation of Ji=sum of (di^2-R^2)^2
+    #in order to minimize J,  the partial derivatives of J with respect to a, b, c equal to zero
+    #solve a, b, c to get Xc, Yc ,R
     if len(PointData)==0:
         X1=0.0
         Y1=0.0
@@ -51,6 +57,8 @@ def Circle_Fitting(ThreePoints,PointData=None):
         X1_Y2=0.0
         X2_Y1=0.0
         N=len(ThreePoints)
+        #calculate the summation of X1 Y1 X2......X2_Y1
+        #and store them in the PointData to avoiad repeative addtions
         for i in range(N):
             X1+=ThreePoints[i][0]
             Y1+=ThreePoints[i][1]
@@ -62,9 +70,9 @@ def Circle_Fitting(ThreePoints,PointData=None):
             X1_Y2+=ThreePoints[i][0]*ThreePoints[i][1]*ThreePoints[i][1]
             X2_Y1+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][1]
         PointData=[X1,Y1,X2,Y2,X3,Y3,X1_Y1,X1_Y2,X2_Y1,N]
-       
-
     else:
+        #ThreePoints[2] is new measurement
+        #retrive the summation from PointData and add neww measurement
         X1=PointData[0]+ThreePoints[2][0]
         Y1=PointData[1]+ThreePoints[2][1]
         X2=PointData[2]+ThreePoints[2][0]*ThreePoints[2][0]
@@ -98,40 +106,38 @@ def estimate_next_pos(measurement, OTHER = None):
     based on noisy (x, y) measurements."""
     if OTHER==None:
         OTHER=[]
-        OTHER.append([measurement]) # OTHER[0] designed to record the newest three measurements
+        OTHER.append([measurement]) # OTHER[0] reserved to record the newest three measurements
         OTHER.append(0.0) #OTHER[1] for total step_dist
-        OTHER.append(False) #for clockwise
+        OTHER.append(False) ##OTHER[2] for clockwise
         OTHER.append(1) #OTHER[3] counter
         OTHER.append([]) #OTHER[4] PointData for circle fitting
         xy_estimate=measurement
         return xy_estimate, OTHER 
     elif len(OTHER[0])<2:
-        #collect enough measurements to calculate the center
+        OTHER[3]+=1 #counter
         OTHER[0].append(measurement) # OTHER[0][1]
-        OTHER[0].append(measurement) ## OTHER[0][2]
+        OTHER[0].append(measurement) ## OTHER[0][2] reserved in advance
         step_dist=distance_between(OTHER[0][1],OTHER[0][0])
         OTHER[1]+=step_dist
-        OTHER[3]+=1
         xy_estimate=measurement
         return xy_estimate, OTHER 
     else:
         OTHER[3]+=1 #counter
-        number_of_try=OTHER[3]
-        Z=measurement
-        OTHER[0][2]=Z ##update OTHER[0][2] for the newest measurement
+        times_of_trial=OTHER[3]
+        Z=measurement 
+        OTHER[0][2]=Z #update OTHER[0][2] for the newest measurement
         Z_prev=OTHER[0][1] ## the previous measurement
-        Z_prev2=OTHER[0][0] ## the one more previous than Z_prev
+        Z_prev2=OTHER[0][0] ## the one prior to Z_prev
 
+        #calculate average step distance
         step_dist=distance_between(Z,Z_prev)
-        sum_step_dist=step_dist+OTHER[1]
-        OTHER[1]=sum_step_dist
-        aver_step=sum_step_dist/(number_of_try-1)
-        #aver_step/=2
+        OTHER[1]+=step_dist #OTHER[1] total step distance
+        aver_step=OTHER[1]/(times_of_trial-1)
+        
         Xc, Yc, R, OTHER[4]=Circle_Fitting(OTHER[0],OTHER[4])
-        print Xc, Yc, R, aver_step
+        #print Xc, Yc, R, aver_step
         
         ##to make sure the bot moves clockwisely or not
-        
         thetaZ_prev2=atan2(Z_prev2[1]-Yc,Z_prev2[0]-Xc)
         thetaZ_prev=atan2(Z_prev[1]-Yc,Z_prev[0]-Xc)
         thetaZ=atan2(Z[1]-Yc,Z[0]-Xc)
@@ -142,19 +148,18 @@ def estimate_next_pos(measurement, OTHER = None):
         if thetaZ_prev2<0:
             thetaZ_prev2+=2*pi
         
-        Clockwise=False##set default to False     
-        if OTHER[3]==4: #if counter==4
-            if abs(thetaZ_prev-thetaZ_prev2)<pi: ## if the two points are not on the verge of 0 
-                if thetaZ_prev>thetaZ_prev2:
-                    Clockwise=False
-                else:
-                    Clockwise=True
+        #if the runaway bot moves "too straight" or the measurement error is too large, it's better to check this every time 
+        if abs(thetaZ_prev-thetaZ_prev2)<pi: ## if the two points are not on the verge of 0 
+            if thetaZ_prev>thetaZ_prev2:
+                Clockwise=False
             else:
-                if thetaZ>thetaZ_prev:
-                    Clockwise=False
-                else:
-                    Clockwise=True
-            OTHER[2]=Clockwise
+                Clockwise=True
+        else:
+            if thetaZ>thetaZ_prev:
+                Clockwise=False
+            else:
+                Clockwise=True
+        OTHER[2]=Clockwise
 
         d_theta=aver_step/R ## average travel degree
         if OTHER[2]==False: 
@@ -218,7 +223,7 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
     broken_robot.penup()
     measured_broken_robot.penup()
     #End of Visualization
-    while not localized and ctr <= 10000:
+    while not localized and ctr <= 1000:
         ctr += 1
         measurement = target_bot.sense()
         position_guess, OTHER = estimate_next_pos_fcn(measurement, OTHER)
@@ -228,7 +233,7 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
         if error <= distance_tolerance:
             print "You got it right! It took you ", ctr, " steps to localize."
             localized = True
-        if ctr == 10000:
+        if ctr == 1000:
             print "Sorry, it took you too many steps to localize the target."
         #More Visualization
         measured_broken_robot.setheading(target_bot.heading*180/pi)
@@ -255,7 +260,7 @@ def naive_next_pos(measurement, OTHER = None):
 # This is how we create a target bot. Check the robot.py file to understand
 # How the robot class behaves.
 test_target = robot(2.5, 4.3, 0.5, 2*pi /30, 1.5)
-measurement_noise = 1.5 * test_target.distance
+measurement_noise = 0.05 * test_target.distance
 test_target.set_noise(0.0, 0.0, measurement_noise)
 
 demo_grading(estimate_next_pos, test_target)

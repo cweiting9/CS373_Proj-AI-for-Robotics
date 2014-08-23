@@ -19,100 +19,118 @@ from robot import *
 from math import *
 from matrix import *
 import random
-
-def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER = None):
-    # This function will be called after each time the target moves. 
-
-    # The OTHER variable is a place for you to store any historical information about
-    # the progress of the hunt (or maybe some localization information). Your return format
-    # must be as follows in order to be graded properly.
-    return turning, distance, OTHER
-
 def cte(r,center,position):
     cte=0.0
     dist_from_center=distance_between(center,position)
     cte=dist_from_center-r
     return cte
-def Circle_Fitting(List_PointSet):
-    #using Least Squares method to obtain the equation of the cirlce 
-    #initailing sum
-    X1=0.0
-    Y1=0.0
-    X2=0.0
-    Y2=0.0
-    X3=0.0
-    Y3=0.0
-    X1_Y1=0.0
-    X1_Y2=0.0
-    X2_Y1=0.0
-    N=len(List_PointSet)
-    for i in range(N):
-        X1+=List_PointSet[i][0]
-        Y1+=List_PointSet[i][1]
-        X2+=List_PointSet[i][0]*List_PointSet[i][0]
-        Y2+=List_PointSet[i][1]*List_PointSet[i][1]
-        X3+=List_PointSet[i][0]*List_PointSet[i][0]*List_PointSet[i][0]
-        Y3+=List_PointSet[i][1]*List_PointSet[i][1]*List_PointSet[i][1]
-        X1_Y1+=List_PointSet[i][0]*List_PointSet[i][1]
-        X1_Y2+=List_PointSet[i][0]*List_PointSet[i][1]*List_PointSet[i][1]
-        X2_Y1+=List_PointSet[i][0]*List_PointSet[i][0]*List_PointSet[i][1]
-    C=N*X2 - X1*X1
-    D=N*X1_Y1 - X1*Y1
-    E=N*X3 + N*X1_Y2 - (X2+Y2)*X1
-    G=N*Y2 - Y1*Y1
-    H=N*X2_Y1 + N*Y3 - (X2+Y2)*Y1
+
+def Circle_Fitting(ThreePoints,PointData=None):
+    #using Least Squares method to obtain the equation of the cirlce
+    #euation of circle: x^2+y^2+ax+by+c=0
+    #Xc=-a/2 Yc=-b/2 R=0.5*sqrt(a^2+b^2-4c)
+    #Measurement point set (Xi, Yi)
+    #di^2=(Xi-Xc)^2+(Yi-Yc)^2
+    #Ji=(di^2-R^2)^2; J=Summation of Ji=sum of (di^2-R^2)^2
+    #in order to minimize J,  the partial derivatives of J with respect to a, b, c equal to zero
+    #solve a, b, c to get Xc, Yc ,R
+    if len(PointData)==0:
+        X1=0.0
+        Y1=0.0
+        X2=0.0
+        Y2=0.0
+        X3=0.0
+        Y3=0.0
+        X1_Y1=0.0
+        X1_Y2=0.0
+        X2_Y1=0.0
+        N=len(ThreePoints)
+        #calculate the summation of X1 Y1 X2......X2_Y1
+        #and store them in the PointData to avoiad repeative addtions
+        for i in range(N):
+            X1+=ThreePoints[i][0]
+            Y1+=ThreePoints[i][1]
+            X2+=ThreePoints[i][0]*ThreePoints[i][0]
+            Y2+=ThreePoints[i][1]*ThreePoints[i][1]
+            X3+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][0]
+            Y3+=ThreePoints[i][1]*ThreePoints[i][1]*ThreePoints[i][1]
+            X1_Y1+=ThreePoints[i][0]*ThreePoints[i][1]
+            X1_Y2+=ThreePoints[i][0]*ThreePoints[i][1]*ThreePoints[i][1]
+            X2_Y1+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][1]
+        PointData=[X1,Y1,X2,Y2,X3,Y3,X1_Y1,X1_Y2,X2_Y1,N]
+    else:
+        #ThreePoints[2] is new measurement
+        #retrive the summation from PointData and add neww measurement
+        X1=PointData[0]+ThreePoints[2][0]
+        Y1=PointData[1]+ThreePoints[2][1]
+        X2=PointData[2]+ThreePoints[2][0]*ThreePoints[2][0]
+        Y2=PointData[3]+ThreePoints[2][1]*ThreePoints[2][1]
+        X3=PointData[4]+ThreePoints[2][0]*ThreePoints[2][0]*ThreePoints[2][0]
+        Y3=PointData[5]+ThreePoints[2][1]*ThreePoints[2][1]*ThreePoints[2][1]
+        X1_Y1=PointData[6]+ThreePoints[2][0]*ThreePoints[2][1]
+        X1_Y2=PointData[7]+ThreePoints[2][0]*ThreePoints[2][1]*ThreePoints[2][1]
+        X2_Y1=PointData[8]+ThreePoints[2][0]*ThreePoints[2][0]*ThreePoints[2][1]
+        N=PointData[9]+1
+        PointData=[X1,Y1,X2,Y2,X3,Y3,X1_Y1,X1_Y2,X2_Y1,N]
+
+    C=N*X2-X1*X1
+    D=N*X1_Y1-X1*Y1
+    E=N*X3+N*X1_Y2-(X2+Y2)*X1
+    G=N*Y2-Y1*Y1
+    H=N*X2_Y1+N*Y3-(X2+Y2)*Y1
 
     a=(H*D-E*G)/(C*G-D*D)
     b=(H*C-E*D)/(D*D-G*C)
-    c=-(a*X1 + b*Y1 + X2 + Y2)/N
+    c=-(a*X1+b*Y1+X2+Y2)/N
 
-    Xc=a/(-2)
-    Yc= b/(-2)
-    R=sqrt(a*a+b*b-4*c)/2
-    return [Xc ,Yc ,R]
+    Xc=-a/2.0
+    Yc=-b/2.0
+    R=sqrt(a*a+b*b-4*c)/2.0
+        
+    return [Xc ,Yc ,R, PointData]
     
 def estimate_next_pos(measurement, OTHER = None):
     """Estimate the next (x, y) position of the wandering Traxbot
     based on noisy (x, y) measurements."""
     if OTHER==None:
         OTHER=[]
-        OTHER.append([measurement])
-        OTHER.append([]) #for (x,y,r)
-        OTHER.append([]) #for step_dist
-        OTHER.append(False) #for clockwise
+        OTHER.append([measurement]) # OTHER[0] reserved to record the newest three measurements
+        OTHER.append(0.0) #OTHER[1] for total step_dist
+        OTHER.append(False) ##OTHER[2] for clockwise
+        OTHER.append(1) #OTHER[3] counter
+        OTHER.append([]) #OTHER[4] PointData for circle fitting
+        OTHER.append([]) #OTHER[5] Xc, Yc, R, aver_step_dist
         xy_estimate=measurement
         return xy_estimate, OTHER 
-    elif len(OTHER[0])<5:
-        #collect enough measurements to calculate the center
-        OTHER[0].append(measurement)
+    elif len(OTHER[0])<2:
+        OTHER[3]+=1 #counter
+        OTHER[0].append(measurement) # OTHER[0][1]
+        OTHER[0].append(measurement) ## OTHER[0][2] reserved in advance
+        step_dist=distance_between(OTHER[0][1],OTHER[0][0])
+        OTHER[1]+=step_dist
         xy_estimate=measurement
         return xy_estimate, OTHER 
     else:
-        
-        Z=measurement
-        OTHER[0].append(Z) ##update OTHER[0] measurement
-        num=len(OTHER[0]) ## the number of the measurements
-        Z_prev=OTHER[0][num-2] ## the previous measurement
-        Z_prev2=OTHER[0][num-3] ## the one more previous than Z_prev
-        step_dist=distance_between(Z,Z_prev)
-        OTHER[2].append(step_dist) ##collect every step_dist for average
-        
-        Center=Circle_Fitting(OTHER[0])
-    
-        aver_cen_x=Center[0]
-        aver_cen_y=Center[1]
-        aver_cen_r=Center[2]
-        sum_step_dist=0.0
-        for i in range(len(OTHER[2])):
-            sum_step_dist+=OTHER[2][i]
-        aver_step=sum_step_dist/len(OTHER[2])
+        OTHER[3]+=1 #counter
+        times_of_trial=OTHER[3]
+        Z=measurement 
+        OTHER[0][2]=Z #update OTHER[0][2] for the newest measurement
+        Z_prev=OTHER[0][1] ## the previous measurement
+        Z_prev2=OTHER[0][0] ## the one prior to Z_prev
 
-        
+        #calculate average step distance
+        step_dist=distance_between(Z,Z_prev)
+        OTHER[1]+=step_dist #OTHER[1] total step distance
+        aver_step=OTHER[1]/(times_of_trial-1)
+        aver_step/=2
+        Xc, Yc, R, OTHER[4]=Circle_Fitting(OTHER[0],OTHER[4])
+        #print Xc, Yc, R, aver_step
+        OTHER[5]=[Xc, Yc, R, aver_step]
+              
         ##to make sure the bot moves clockwisely or not
-        
-        thetaZ_prev2=atan2(Z_prev2[1]-aver_cen_y,Z_prev2[0]-aver_cen_x)
-        thetaZ_prev=atan2(Z_prev[1]-aver_cen_y,Z_prev[0]-aver_cen_x)
-        thetaZ=atan2(Z[1]-aver_cen_y,Z[0]-aver_cen_x)
+        thetaZ_prev2=atan2(Z_prev2[1]-Yc,Z_prev2[0]-Xc)
+        thetaZ_prev=atan2(Z_prev[1]-Yc,Z_prev[0]-Xc)
+        thetaZ=atan2(Z[1]-Yc,Z[0]-Xc)
         if thetaZ<0:
             thetaZ+=2*pi ##make thetaZ between 0 and 2pi
         if thetaZ_prev<0:
@@ -120,43 +138,53 @@ def estimate_next_pos(measurement, OTHER = None):
         if thetaZ_prev2<0:
             thetaZ_prev2+=2*pi
         
-        Clockwise=False##set default to False     
-        if len(OTHER[0])==16:
-            if abs(thetaZ_prev-thetaZ_prev2)<pi: ## if the two points are not on the verge of 0 
-                if thetaZ_prev>thetaZ_prev2:
-                    Clockwise=False
-                else:
-                    Clockwise=True
+        #if the runaway bot moves "too straight" or the measurement error is too large, it's better to check this every time 
+        if abs(thetaZ_prev-thetaZ_prev2)<pi: ## if the two points are not on the verge of 0 
+            if thetaZ_prev>thetaZ_prev2:
+                Clockwise=False
             else:
-                if thetaZ>thetaZ_prev:
-                    Clockwise=False
-                else:
-                    Clockwise=True
-            OTHER[3]=Clockwise
+                Clockwise=True
+        else:
+            if thetaZ>thetaZ_prev:
+                Clockwise=False
+            else:
+                Clockwise=True
+        OTHER[2]=Clockwise
 
-        d_theta=aver_step/aver_cen_r ## average travel degree
-        if OTHER[3]==False: 
+        d_theta=aver_step/R ## average travel degree
+        OTHER[2]=False
+        if OTHER[2]==False:
             THETA=thetaZ+d_theta
         else:
             THETA=thetaZ-d_theta
 
-        next_x=aver_cen_x+aver_cen_r*cos(THETA)
-        next_y=aver_cen_y+aver_cen_r*sin(THETA)
+        next_x=Xc+R*cos(THETA)
+        next_y=Yc+R*sin(THETA)
         xy_estimate=[next_x,next_y]
+
+        #update OTHER[0][0] OTHER[0][1] to get new measurement for next try
+        OTHER[0][0]=OTHER[0][1]
+        OTHER[0][1]=OTHER[0][2] 
         
         return xy_estimate, OTHER 
     
     # You must return xy_estimate (x, y), and OTHER (even if it is None) 
     # in this order for grading purposes.
 
+
 def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER = None):
     # This function will be called after each time the target moves. 
-    if OTHER==None:
+
+    if OTHER==None: #first measurement
         OTHER=[]
         target_OTHER=None
         target_est, target_OTHER=estimate_next_pos(target_measurement, target_OTHER)
-        OTHER.append(target_OTHER)
-        OTHER.append(0) ## for cte
+        OTHER.append(target_OTHER)#OTEHR[0]:target_OTHER for estimate_next_pos
+        OTHER.append(0) # OTEHR[1] for cte
+
+        #to decide turning degree and moveing distance of the hunter
+        #if distance between target and hunter is larger than hunter's max speed,
+        #then hunter moves at full speed. Otherwise, move the exact distance between them 
         diff_heading=get_heading(hunter_position, target_est)
         turning=angle_trunc(diff_heading-hunter_heading)
         dist=distance_between(target_est,hunter_position)
@@ -164,50 +192,64 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
             distance=max_distance
         else:
             distance=dist
+
     else:
+        #to retrive the necessary information from OTHER
         target_est, target_OTHER=estimate_next_pos(target_measurement, OTHER[0])
-        OTHER[0]=target_OTHER   
+        OTHER[0]=target_OTHER
         dist=distance_between(target_est,hunter_position)
-        
-        if len(OTHER[0][4])==0:    ##when no aver center and aver step_distance
+        #OTHER[0][5] states that there's still not enough measurements for Xc, Yc, R
+        #just simply move toward the target
+        if len(OTHER[0][5])==0:
             diff_heading=get_heading(hunter_position, target_est)
             turning=angle_trunc(diff_heading-hunter_heading)
+            
             if dist>max_distance:
                 distance=max_distance
             else:
                 distance=dist
+        #When the hunter has the information Xc ,Yc ,R, step distace
         else:
-            aver_cen_step=OTHER[0][4]
-            crosstrack_error=cte(aver_cen_step[2],[aver_cen_step[0],aver_cen_step[1]],hunter_position)
-            if OTHER[1]==0:
-                OTHER[1]=crosstrack_error
-                diff_heading=get_heading(hunter_position, target_est)
+            #to retrive Xc, Yc, R and step_dist from estimate_next_pos
+            Xc, Yc ,R, aver_step_dist=OTHER[0][5] 
+
+            #if the distance between the hunter and the center of the track of the target is not between
+            #(R+1.1*aver_step_dist) and (R-1.1*aver_step_dist), then the hunter moves toward the postion
+            #which is the nearest point on the track to the hunter
+            dist_center=distance_between(hunter_position,[Xc,Yc])
+            if dist_center>R+1.1*aver_step_dist or dist_center<R-1.1*aver_step_dist:
+                nearest_theta=atan2(hunter_position[1]-Yc,hunter_position[0]-Xc)
+                nearest_point=[Xc+R*cos(nearest_theta),Yc+R*sin(nearest_theta)]
+                diff_heading=get_heading(hunter_position, nearest_point)
                 turning=angle_trunc(diff_heading-hunter_heading)
-                if dist>max_distance:
+                dist_nearest=distance_between(nearest_point,hunter_position)
+                if dist_nearest>max_distance:
                     distance=max_distance
                 else:
-                    distance=dist
-                
-            else:
-                diff_crosstrack_error=-OTHER[1]
-                OTHER[1]=crosstrack_error
+                    distance=dist_nearest
+            #when the hunter is near the track of the target, use PD control to move on the track
+            else:             
+                crosstrack_error=cte(R,[Xc, Yc],hunter_position)
+                diff_crosstrack_error=-OTHER[1] #OTHER[1]: last measurement's cte 
+                OTHER[1]=crosstrack_error #update OTHER[1] for next move
+                #if the bot is unreachable, then move on the track of the circle in the opposite direction 
                 if dist>max_distance:
                     distance=0.5*max_distance
                     diff_crosstrack_error+=crosstrack_error
-                    if OTHER[0][3]==False:
+                    if OTHER[0][2]==False: ##if the bot moves counterclockwisely
                         turning=-1.0*crosstrack_error-1.0*diff_crosstrack_error
                     else:
                         turning=1.0*crosstrack_error+1.0*diff_crosstrack_error
+                #if the bot is reachable, then go for it
                 else:
                     distance=dist
                     diff_heading=get_heading(hunter_position, target_est)
                     turning=angle_trunc(diff_heading-hunter_heading)
             
-
+    return turning, distance, OTHER
     # The OTHER variable is a place for you to store any historical information about
     # the progress of the hunt (or maybe some localization information). Your return format
     # must be as follows in order to be graded properly.
-    return turning, distance, OTHER
 
 def distance_between(point1, point2):
     """Computes distance between point1 and point2. Points are (x, y) pairs."""
@@ -331,13 +373,13 @@ def naive_next_move(hunter_position, hunter_heading, target_measurement, max_dis
     distance = max_distance # full speed ahead!
     return turning, distance, OTHER
 
-target = robot(0.0, 10.0, 0.0, 2*pi / 30, 1.5)
-measurement_noise = 2.0*target.distance # VERY NOISY!!
+target = robot(0.0, 10.0, 0.0, 2*pi /30, 1.5)
+measurement_noise = 1.0*target.distance # VERY NOISY!!
 target.set_noise(0.0, 0.0, measurement_noise)
 
 hunter = robot(-10.0, -10.0, 0.0)
 
-print demo_grading(hunter, target, naive_next_move)
+print demo_grading(hunter, target, next_move)
 
 
 
