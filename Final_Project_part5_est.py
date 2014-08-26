@@ -37,7 +37,67 @@ import random
 # next position. The OTHER variable that your function returns will be 
 # passed back to your function the next time it is called. You can use
 # this to keep track of important information over time.
-def Circle_Fitting(ThreePoints,PointData=None):
+def ransac(data,n,k,t,d,return_inlier=True,debug=False):
+    iterations = 0
+    bestfit_Xc=None
+    bestfit_Yc=None
+    bestfit_R = None
+    data_for_return=None
+    besterr = 1000000
+    best_inlier_idxs = None
+    while iterations < k:
+        #n randomly selected values from data
+        data_idxs=range(len(data))
+        random.shuffle(data_idxs)
+        maybe_idxs=data_idxs[:n]
+        test_idxs=data_idxs[n:]
+        maybeinliers=[]
+        for i in maybe_idxs:
+            maybeinliers.append(data[i])
+        test_points=[]
+        for j in test_idxs:
+            test_points.append(data[j])
+        maybe_Xc, maybe_Yc, maybe_R=Circle_Fitting(maybeinliers)
+        alsoinliers=[]
+        for point in test_points:
+            d2=(sqrt((point[0]-maybe_Xc)**2+(point[1]-maybe_Yc)**2)-maybe_R)**2
+            if d2<t:
+                alsoinliers.append(point)
+        
+        if debug:
+            print 'iteration %d:len(alsoinliers) = %d'%(iterations,len(alsoinliers))
+            print besterr
+        if len(alsoinliers)>d:
+            betterdata=maybeinliers+alsoinliers
+            better_Xc, better_Yc, better_R=Circle_Fitting(betterdata)
+            sum_thiserr=0
+            for point in betterdata:
+                d2=(sqrt((point[0]-better_Xc)**2+(point[1]-better_Yc)**2)-better_R)**2
+                sum_thiserr+=d2
+            thiserr=sum_thiserr/len(betterdata)
+            if thiserr<besterr:
+                bestfit_Xc, bestfit_Yc, bestfit_R = better_Xc, better_Yc, better_R
+                besterr = thiserr
+                if return_inlier:
+                    data_for_return=betterdata
+                
+        iterations+=1
+
+        
+        
+    if bestfit_R is None:
+        raise ValueError("did not meet fit acceptance criteria")
+    
+    if return_inlier:
+        return data_for_return, bestfit_Xc, bestfit_Yc, bestfit_R
+    else:
+        return bestfit_Xc, bestfit_Yc, bestfit_R            
+        
+        
+            
+            
+
+def Circle_Fitting(ThreePoints):
     #using Least Squares method to obtain the equation of the cirlce
     #euation of circle: x^2+y^2+ax+by+c=0
     #Xc=-a/2 Yc=-b/2 R=0.5*sqrt(a^2+b^2-4c)
@@ -46,44 +106,28 @@ def Circle_Fitting(ThreePoints,PointData=None):
     #Ji=(di^2-R^2)^2; J=Summation of Ji=sum of (di^2-R^2)^2
     #in order to minimize J,  the partial derivatives of J with respect to a, b, c equal to zero
     #solve a, b, c to get Xc, Yc ,R
-    if len(PointData)==0:
-        X1=0.0
-        Y1=0.0
-        X2=0.0
-        Y2=0.0
-        X3=0.0
-        Y3=0.0
-        X1_Y1=0.0
-        X1_Y2=0.0
-        X2_Y1=0.0
-        N=len(ThreePoints)
-        #calculate the summation of X1 Y1 X2......X2_Y1
-        #and store them in the PointData to avoiad repeative addtions
-        for i in range(N):
-            X1+=ThreePoints[i][0]
-            Y1+=ThreePoints[i][1]
-            X2+=ThreePoints[i][0]*ThreePoints[i][0]
-            Y2+=ThreePoints[i][1]*ThreePoints[i][1]
-            X3+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][0]
-            Y3+=ThreePoints[i][1]*ThreePoints[i][1]*ThreePoints[i][1]
-            X1_Y1+=ThreePoints[i][0]*ThreePoints[i][1]
-            X1_Y2+=ThreePoints[i][0]*ThreePoints[i][1]*ThreePoints[i][1]
-            X2_Y1+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][1]
-        PointData=[X1,Y1,X2,Y2,X3,Y3,X1_Y1,X1_Y2,X2_Y1,N]
-    else:
-        #ThreePoints[2] is new measurement
-        #retrive the summation from PointData and add neww measurement
-        X1=PointData[0]+ThreePoints[2][0]
-        Y1=PointData[1]+ThreePoints[2][1]
-        X2=PointData[2]+ThreePoints[2][0]*ThreePoints[2][0]
-        Y2=PointData[3]+ThreePoints[2][1]*ThreePoints[2][1]
-        X3=PointData[4]+ThreePoints[2][0]*ThreePoints[2][0]*ThreePoints[2][0]
-        Y3=PointData[5]+ThreePoints[2][1]*ThreePoints[2][1]*ThreePoints[2][1]
-        X1_Y1=PointData[6]+ThreePoints[2][0]*ThreePoints[2][1]
-        X1_Y2=PointData[7]+ThreePoints[2][0]*ThreePoints[2][1]*ThreePoints[2][1]
-        X2_Y1=PointData[8]+ThreePoints[2][0]*ThreePoints[2][0]*ThreePoints[2][1]
-        N=PointData[9]+1
-        PointData=[X1,Y1,X2,Y2,X3,Y3,X1_Y1,X1_Y2,X2_Y1,N]
+   
+    X1=0.0
+    Y1=0.0
+    X2=0.0
+    Y2=0.0
+    X3=0.0
+    Y3=0.0
+    X1_Y1=0.0
+    X1_Y2=0.0
+    X2_Y1=0.0
+    N=len(ThreePoints)
+ 
+    for i in range(N):
+        X1+=ThreePoints[i][0]
+        Y1+=ThreePoints[i][1]
+        X2+=ThreePoints[i][0]*ThreePoints[i][0]
+        Y2+=ThreePoints[i][1]*ThreePoints[i][1]
+        X3+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][0]
+        Y3+=ThreePoints[i][1]*ThreePoints[i][1]*ThreePoints[i][1]
+        X1_Y1+=ThreePoints[i][0]*ThreePoints[i][1]
+        X1_Y2+=ThreePoints[i][0]*ThreePoints[i][1]*ThreePoints[i][1]
+        X2_Y1+=ThreePoints[i][0]*ThreePoints[i][0]*ThreePoints[i][1]
 
     C=N*X2-X1*X1
     D=N*X1_Y1-X1*Y1
@@ -99,44 +143,65 @@ def Circle_Fitting(ThreePoints,PointData=None):
     Yc=-b/2.0
     R=sqrt(a*a+b*b-4*c)/2.0
         
-    return [Xc ,Yc ,R, PointData]
+    return [Xc ,Yc ,R]
     
 def estimate_next_pos(measurement, OTHER = None):
     """Estimate the next (x, y) position of the wandering Traxbot
     based on noisy (x, y) measurements."""
     if OTHER==None:
         OTHER=[]
-        OTHER.append([measurement]) # OTHER[0] reserved to record the newest three measurements
+        OTHER.append([measurement]) # OTHER[0] reserved to record measurements
         OTHER.append(0.0) #OTHER[1] for total step_dist
         OTHER.append(False) ##OTHER[2] for clockwise
         OTHER.append(1) #OTHER[3] counter
-        OTHER.append([]) #OTHER[4] PointData for circle fitting
         xy_estimate=measurement
         return xy_estimate, OTHER 
     elif len(OTHER[0])<2:
         OTHER[3]+=1 #counter
         OTHER[0].append(measurement) # OTHER[0][1]
-        OTHER[0].append(measurement) ## OTHER[0][2] reserved in advance
         step_dist=distance_between(OTHER[0][1],OTHER[0][0])
         OTHER[1]+=step_dist
         xy_estimate=measurement
         return xy_estimate, OTHER 
     else:
         OTHER[3]+=1 #counter
+        #print OTHER[3]
         times_of_trial=OTHER[3]
-        Z=measurement 
-        OTHER[0][2]=Z #update OTHER[0][2] for the newest measurement
-        Z_prev=OTHER[0][1] ## the previous measurement
-        Z_prev2=OTHER[0][0] ## the one prior to Z_prev
+        Z=measurement
+        OTHER[0].append(measurement)
+        num=len(OTHER[0])
+        Z_prev=OTHER[0][num-2] ## the previous measurement
+        Z_prev2=OTHER[0][num-3] ## the one prior to Z_prev
 
         #calculate average step distance
         step_dist=distance_between(Z,Z_prev)
         OTHER[1]+=step_dist #OTHER[1] total step distance
         aver_step=OTHER[1]/(times_of_trial-1)
+        aver_step=1.5
+        Xc, Yc, R=Circle_Fitting(OTHER[0])
+       
         
-        Xc, Yc, R, OTHER[4]=Circle_Fitting(OTHER[0],OTHER[4])
-        #print Xc, Yc, R, aver_step
-        
+        if OTHER[3]==800:
+            print len(OTHER[0])
+            print Xc, Yc, R, aver_step
+            
+            print "============================================="
+            import pylab
+            for POINT in OTHER[0]:
+                pylab.plot(POINT[0],POINT[1],'k.', label='ori data')
+            OTHER[0], bestfit_Xc, bestfit_Yc, bestfit_R=ransac(OTHER[0],3,2000,0.01,50,True,False)
+            for POINT in OTHER[0]:
+                pylab.plot(POINT[0],POINT[1],'r.', label='after data')
+            print len(OTHER[0])
+            print bestfit_Xc, bestfit_Yc, bestfit_R
+            
+            pylab.show()
+            
+            print "============================================="
+
+
+        if OTHER[3]==999:
+            print Xc, Yc, R, aver_step
         ##to make sure the bot moves clockwisely or not
         thetaZ_prev2=atan2(Z_prev2[1]-Yc,Z_prev2[0]-Xc)
         thetaZ_prev=atan2(Z_prev[1]-Yc,Z_prev[0]-Xc)
@@ -170,10 +235,6 @@ def estimate_next_pos(measurement, OTHER = None):
         next_x=Xc+R*cos(THETA)
         next_y=Yc+R*sin(THETA)
         xy_estimate=[next_x,next_y]
-
-        #update OTHER[0][0] OTHER[0][1] to get new measurement for next try
-        OTHER[0][0]=OTHER[0][1]
-        OTHER[0][1]=OTHER[0][2] 
         
         return xy_estimate, OTHER 
     
@@ -199,30 +260,6 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
     # if you haven't localized the target bot, make a guess about the next
     # position, then we move the bot and compare your guess to the true
     # next position. When you are close enough, we stop checking.
-    #For Visualization
-    import turtle    #You need to run this locally to use the turtle module
-    window = turtle.Screen()
-    window.bgcolor('white')
-    size_multiplier= 25.0  #change Size of animation
-    broken_robot = turtle.Turtle()
-    broken_robot.shape('turtle')
-    broken_robot.color('green')
-    broken_robot.resizemode('user')
-    broken_robot.shapesize(0.1, 0.1, 0.1)
-    measured_broken_robot = turtle.Turtle()
-    measured_broken_robot.shape('circle')
-    measured_broken_robot.color('red')
-    measured_broken_robot.resizemode('user')
-    measured_broken_robot.shapesize(0.1, 0.1, 0.1)
-    prediction = turtle.Turtle()
-    prediction.shape('arrow')
-    prediction.color('blue')
-    prediction.resizemode('user')
-    prediction.shapesize(0.1, 0.1, 0.1)
-    prediction.penup()
-    broken_robot.penup()
-    measured_broken_robot.penup()
-    #End of Visualization
     while not localized and ctr <= 1000:
         ctr += 1
         measurement = target_bot.sense()
@@ -235,17 +272,6 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
             localized = True
         if ctr == 1000:
             print "Sorry, it took you too many steps to localize the target."
-        #More Visualization
-        measured_broken_robot.setheading(target_bot.heading*180/pi)
-        measured_broken_robot.goto(measurement[0]*size_multiplier, measurement[1]*size_multiplier-200)
-        measured_broken_robot.stamp()
-        broken_robot.setheading(target_bot.heading*180/pi)
-        broken_robot.goto(target_bot.x*size_multiplier, target_bot.y*size_multiplier-200)
-        broken_robot.stamp()
-        prediction.setheading(target_bot.heading*180/pi)
-        prediction.goto(position_guess[0]*size_multiplier, position_guess[1]*size_multiplier-200)
-        prediction.stamp()
-        #End of Visualization
     return localized
 # This is a demo for what a strategy could look like. This one isn't very good.
 def naive_next_pos(measurement, OTHER = None):
@@ -259,8 +285,8 @@ def naive_next_pos(measurement, OTHER = None):
 
 # This is how we create a target bot. Check the robot.py file to understand
 # How the robot class behaves.
-test_target = robot(2.5, 4.3, 0.5, 2*pi /15, 1.5)
-measurement_noise = 0.05 * test_target.distance
+test_target = robot(2.5, 4.3, 0.5, 2*pi /30, 1.5)
+measurement_noise = 0.8 * test_target.distance
 test_target.set_noise(0.0, 0.0, measurement_noise)
 
 demo_grading(estimate_next_pos, test_target)

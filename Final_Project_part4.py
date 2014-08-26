@@ -280,10 +280,12 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
                 # Hexagonal track part
                 current_theta=OTHER[6]
                 # counterclockwise
-                Path_Theta=[pi/3.0, 2.0*pi/3.0, 3.0*pi/3.0, 4.0*pi/3.0, 5.0*pi/3.0, 6.0*pi/3.0]
+                Path_Theta=[2*pi/3.0, 4*pi/3.0, 6*pi/3.0]
+                #Path_Theta=[pi/3.0, 2.0*pi/3.0, 3.0*pi/3.0, 4.0*pi/3.0, 5.0*pi/3.0, 6.0*pi/3.0]
                 if OTHER[0][2]==True: # clockwise
-                    Path_Theta=[-pi/3.0, -2.0*pi/3.0, -3.0*pi/3.0, -4.0*pi/3.0, -5.0*pi/3.0, -6.0*pi/3.0]
-
+                    #Path_Theta=[-pi/3.0, -2.0*pi/3.0, -3.0*pi/3.0, -4.0*pi/3.0, -5.0*pi/3.0, -6.0*pi/3.0]
+                    Path_Theta=[-2*pi/3.0, -4*pi/3.0, -6*pi/3.0]
+                    
                 # Make the path points theta relative to the current_theta
                 Path_Points=[]
                 for theta in Path_Theta:
@@ -304,7 +306,7 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
                     distance=dist
                     # Dont add counter repeatedly
                     if OTHER[1]==False:
-                        OTHER[3]=(OTHER[3]+1)%6
+                        OTHER[3]=(OTHER[3]+1)%3
                         OTHER[1]=True
                 else:
                     
@@ -338,7 +340,7 @@ def demo_grading(hunter_bot, target_bot, next_move_fcn, OTHER = None):
     to the target_bot. This function is here to help you understand how we 
     will grade your submission."""
     max_distance = 0.98 * target_bot.distance # 0.98 is an example. It will change.
-    separation_tolerance = 0.02 * target_bot.distance # hunter must be within 0.02 step size to catch target
+    separation_tolerance = 0.002 * target_bot.distance # hunter must be within 0.02 step size to catch target
     caught = False
     ctr = 0
     #For Visualization
@@ -447,7 +449,7 @@ def naive_next_move(hunter_position, hunter_heading, target_measurement, max_dis
     distance = max_distance # full speed ahead!
     return turning, distance, OTHER
 
-target = robot(0.0, 0.0, 0.0, 2*pi / 34.0, 1.5)
+target = robot(0.0, 0.0, 0.0, -2*pi / 34.0, 1.5)
 measurement_noise = .05*target.distance
 target.set_noise(0.0, 0.0, measurement_noise)
 
