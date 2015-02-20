@@ -340,7 +340,7 @@ def demo_grading(hunter_bot, target_bot, next_move_fcn, OTHER = None):
     to the target_bot. This function is here to help you understand how we 
     will grade your submission."""
     max_distance = 0.98 * target_bot.distance # 0.98 is an example. It will change.
-    separation_tolerance = 0.002 * target_bot.distance # hunter must be within 0.02 step size to catch target
+    separation_tolerance = 0.02 * target_bot.distance # hunter must be within 0.02 step size to catch target
     caught = False
     ctr = 0
     #For Visualization
@@ -449,7 +449,7 @@ def naive_next_move(hunter_position, hunter_heading, target_measurement, max_dis
     distance = max_distance # full speed ahead!
     return turning, distance, OTHER
 
-target = robot(0.0, 0.0, 0.0, -2*pi / 34.0, 1.5)
+target = robot(0.0, 10.0, 0.0, -2*pi / 34.0, 1.5)
 measurement_noise = .05*target.distance
 target.set_noise(0.0, 0.0, measurement_noise)
 
